@@ -1,6 +1,16 @@
 # migration
 Data migration utilities
 
+## Tools
+
+### CLI Tools
+
+- [`jq`](https://jqlang.github.io/jq/) for transforming JSON data.
+
+### GUI Tools
+
+- DataGrip for managing SQL Databases.
+
 ## Useful Links
 
 - [Import From External Sources Into Sanity](https://www.sanity.io/guides/guide-importing-data-from-external-sources)
