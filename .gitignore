@@ -134,6 +134,7 @@ dist
 # data files
 *.xml
 *.json
+*.ndjson
 
 # oca-specific
 # Ignore big SQL file, as this exists in the oca-data repo in our org: https://github.com/onmagnoliasquare/oca
