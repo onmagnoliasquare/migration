@@ -19,8 +19,6 @@ func main() {
 
 	flag.Parse()
 
-	// Map of users from OMS json.
-
 	// Destination file.
 	outFile := fmt.Sprintf("./output/transformed_%s", filepath.Base(*srcFile))
 
@@ -188,28 +186,28 @@ func ocaUUID(gen uuid.UUID) string {
 // Data translations
 
 // Document represents data that all Sanity documents must have.
-type Document struct {
+type document struct {
 	Type string `json:"_type"`
-	Id   string `json:"_id"`
+	Id   string `json:"_id,omitempty"`
 }
 
-type Slug struct {
+type slug struct {
 	Type    string `json:"_type"`
 	Current string `json:"current"`
 }
 
-func newSlug(s string) Slug {
-	return Slug{
+func newSlug(s string) slug {
+	return slug{
 		Type:    "_slug",
 		Current: s,
 	}
 }
 
 type author struct {
-	Document
+	document
 	Name  string `json:"name"`
 	Email string `json:"email,omitempty"`
-	Slug  Slug   `json:"slug"`
+	Slug  slug   `json:"slug"`
 	Year  int    `json:"year"`
 
 	// NetID is not needed for the export, however it is useful when using the
@@ -220,7 +218,7 @@ type author struct {
 
 func newAuthor(a ocaAuthor) (*author, error) {
 	uid := uuid.New()
-	document := Document{
+	document := document{
 		Type: "member",
 		Id:   ocaUUID(uid),
 	}
@@ -232,7 +230,7 @@ func newAuthor(a ocaAuthor) (*author, error) {
 	}
 
 	newAuthor := &author{
-		Document: document,
+		document: document,
 		Name:     a.Name,
 		Slug:     slug,
 		Year:     year,
@@ -243,8 +241,8 @@ func newAuthor(a ocaAuthor) (*author, error) {
 }
 
 type tag struct {
-	Document
-	Slug        Slug   `json:"slug"`
+	document
+	Slug        slug   `json:"slug"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 }
