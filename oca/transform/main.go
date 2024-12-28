@@ -249,6 +249,49 @@ type tag struct {
 	Description string `json:"description"`
 }
 
+type article struct {
+	document
+	Slug         slug        `json:"slug"`
+	Title        string      `json:"title"`
+	Subtitle     string      `json:"subtitle"`
+	Abstract     string      `json:"abstract"`
+	Authors      []author    `json:"authors"`
+	Date         string      `json:"date"`
+	CreatedAt    string      `json:"_createdAt"`
+	UpdatedAt    string      `json:"_updatedAt"`
+	Content      content     `json:"content"`
+	Tags         []refTag    `json:"tags"`
+	Category     refCategory `json:"category"`
+	UseCustomCss bool        `json:"useCustomCss"`
+}
+
+type content struct{}
+
+type refCategory struct {
+	document
+
+	// Ref is the `_id` of the Category document.
+	// See: https://www.sanity.io/docs/reference-type#e97572ca6050
+	Ref string `json:"_ref"`
+}
+
+type refTag struct {
+	document
+
+	// Ref is the `_id` of the Tag document.
+	// See: https://www.sanity.io/docs/reference-type#e97572ca6050
+	Ref string `json:"_ref"`
+}
+
+func newRefCategory(ref string) refCategory {
+	return refCategory{
+		document: document{
+			Type: "reference",
+		},
+		Ref: ref,
+	}
+}
+
 type ocaAuthor struct {
 	Name  string `json:"display_name"`
 	Email string `json:"user_email"`
@@ -263,4 +306,15 @@ type ocaAuthor struct {
 type ocaTag struct {
 	Name string `json:"name"`
 	Slug string `json:"slug"`
+}
+
+type ocaArticle struct {
+	Id              int    `json:"ID"`
+	PostAuthor      int    `json:"post_author"`
+	PostDateGMT     string `json:"post_date_gmt"`
+	PostModifiedGMT string `json:"post_modified_gmt"`
+	PostContent     string `json:"post_content"`
+	PostTitle       string `json:"post_title"`
+	PostExcerpt     string `json:"post_excerpt"`
+	PostName        string `json:"post_name"`
 }
