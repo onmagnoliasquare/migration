@@ -1,0 +1,18 @@
+# Retrieved from: https://iamvickyav.medium.com/mysql-init-script-on-docker-compose-e53677102e48
+
+version: '3.1'
+
+name: on-century-avenue
+
+services:
+  mysql:
+    build:
+      context: ..
+      dockerfile: ./db.Dockerfile
+    image: mysql:9.0
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+
+    # 2014 because that was the year our org was established :)
+    ports:
+      - "2014:3306"
