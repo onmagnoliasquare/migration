@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -52,11 +53,17 @@ func main() {
 			Current: strings.ReplaceAll(strings.ToLower(authors[i].Name), " ", "-"),
 		}
 
+		year, err := strconv.Atoi(authors[i].UserRegistered[:4])
+		if err != nil {
+			fmt.Println(err)
+		}
+
 		a := &author{
+			Type: "member",
 			Id:   ocaUUID(uid),
 			Name: authors[i].Name,
 			Slug: slug,
-			Year: authors[i].UserRegistered[:4],
+			Year: year,
 		}
 
 		newAuthor, err := json.MarshalIndent(a, " ", "  ")
@@ -92,11 +99,12 @@ func ocaUUID(gen uuid.UUID) string {
 // Data translations
 
 type author struct {
+	Type  string `json:"_type"`
 	Id    string `json:"_id"`
 	Name  string `json:"name"`
 	Email string `json:"email,omitempty"`
 	Slug  slug   `json:"slug"`
-	Year  string `json:"year"`
+	Year  int    `json:"year"`
 }
 
 type slug struct {
