@@ -16,15 +16,16 @@ The order of data upload follows this sequence:
 3. Media
 4. Posts
 
-Posts may have all the previous three types of data, and therefore require it to have a smooth upload process.
+Posts may have all the previous three types of data, and therefore require these fields to be populated to have a complete and valid article document in Sanity Content Lake.
 
 ## Tools and Software
 
 Tools and software used to accomplish this migration:
 
-- Docker and Docker Compose
-- DataGrip
-- Go
+- **Docker/Compose** to run a local MySQL database.
+- **DataGrip** for easy access to browsing SQL data.
+- **Go** for the main transformation program.
+- **Node** for running JavaScript files.
 
 ### Disambiguation
 
