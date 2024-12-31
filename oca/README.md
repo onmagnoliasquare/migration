@@ -9,6 +9,15 @@
 5. Format the schema into an `ndjson` file
 6. Upload this file to Sanity using Sanity's CLI tool
 
+The order of data upload follows this sequence:
+
+1. Authors
+2. Tags and Categories
+3. Media
+4. Posts
+
+Posts may have all the previous three types of data, and therefore require it to have a smooth upload process.
+
 ## Tools and Software
 
 Tools and software used to accomplish this migration:
@@ -136,6 +145,8 @@ WHERE object_id = [post ID]
 ```
 
 `[post id]` is the `ID` of interest. The output should return none or many values in the `term_taxonomy_id` column. Repeat **Step 2** with the values returned in the query to find the names of the categories or tags.
+
+## aa
 
 ## Useful Links
 
