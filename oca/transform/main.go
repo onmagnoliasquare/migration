@@ -2,12 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -33,85 +30,66 @@ func main() {
 			ocaTermRelationships:   "../input/oca_term_relationships-all.json",
 			ocaPostIdAndCategoryId: "../input/oca_post_id_to_category_id.json",
 			ocaCategorySlugAndId:   "../input/oca_terms-categories.json",
+			ocaAllTerms:            "../input/oca_terms-all.json",
 		},
 		outputs: outputs{
-			transformedBlockContent: "./js/output/transformed_block_output.json",
+			transformedOcaUsers: "../output/transformed_oca_users.json",
 		},
 		js: js{
-			indexJsPath:    "./js/index.js",
-			inputHtmlPath:  "./js/index.html",
-			outputHtmlPath: "./js/output/output.html",
+			indexJsPath:             "./js/index.js",
+			inputHtmlPath:           "./js/index.html",
+			outputHtmlPath:          "./js/output/output.html",
+			transformedBlockContent: "./js/output/transformed_block_output.json",
 		},
 	}
 
 	fmt.Println(config)
 
-	srcFile := flag.String("srcFile", "./input/oca_users.json", "JSON source file")
+	// Phase 1: get Authors, Tags, and Categories.
+	{
+		byteValue, err := getByteValue(config.inputs.ocaUsers)
+		if err != nil {
+			panic(err)
+		}
 
-	flag.Parse()
+		userMap, err := makeUserMap(byteValue)
+		if err != nil {
+			panic(err)
+		}
 
-	// Destination file.
-	outFile := fmt.Sprintf("./output/transformed_%s", filepath.Base(*srcFile))
+		exportString, err := transformUsers(byteValue)
+		if err != nil {
+			fmt.Println(err)
+		}
 
-	// Mappings
+		err = os.WriteFile(config.outputs.transformedOcaTags, []byte(exportString), 0644)
+		if err != nil {
+			fmt.Println(err)
+		}
 
-	byteValue, err := getByteValue(*srcFile)
-	if err != nil {
-		panic(err)
+		// Get tags.
+
+		byteValue, err = getByteValue(config.inputs.ocaAllTerms)
+		if err != nil {
+			panic(err)
+		}
+
+		exportString, err = transformTags(byteValue, userMap)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		err = os.WriteFile(config.outputs.transformedOcaTags, []byte(exportString), 0644)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 
-	userMap, err := makeUserMap(byteValue)
-	if err != nil {
-		panic(err)
+	// Phase 2: from the new data, assemble articles to upload.
+	{
+
 	}
 
-	exportString, err := transformUsers(byteValue)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	fmt.Println(outFile)
-
-	err = os.WriteFile(outFile, []byte(exportString), 0644)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	byteValue, err = getByteValue("./input/oca_terms-all.json")
-	if err != nil {
-		panic(err)
-	}
-
-	exportString, err = transformTags(byteValue, userMap)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	outFile = "./output/transformed_oca_tags.json"
-
-	fmt.Println(outFile)
-
-	err = os.WriteFile(outFile, []byte(exportString), 0644)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-}
-
-func getByteValue(p string) ([]byte, error) {
-	jsonFile, err := os.Open(p)
-	if err != nil {
-		return []byte{}, err
-	}
-
-	defer jsonFile.Close()
-
-	byteValue, err := io.ReadAll(jsonFile)
-	if err != nil {
-		return []byte{}, err
-	}
-
-	return byteValue, nil
 }
 
 func makeUserMap(byteValue []byte) (map[string]bool, error) {
@@ -217,14 +195,6 @@ func transformArticles(byteValue []byte) (string, error) {
 	return exportString, nil
 }
 
-// ocaUUID prepends `oca-` to the front of the UUID so we know which data
-// objects came from OCA just by their ID. This also helps so that in the
-// future, if there needs to be another transition, sorting data by
-// organization is easier.
-func ocaUUID(gen uuid.UUID) string {
-	return fmt.Sprintf("oca-%s", gen.String())
-}
-
 // config represents paths of input and output files.
 type config struct {
 	inputs  inputs
@@ -243,6 +213,7 @@ type inputs struct {
 	ocaTermRelationships   string
 	ocaPostIdAndCategoryId string
 	ocaCategorySlugAndId   string
+	ocaAllTerms            string
 
 	// Path of Sanity ID JSON files.
 
@@ -255,12 +226,13 @@ type outputs struct {
 
 	// Path of users in Sanity JSON format.
 	transformedOcaUsers string
-
-	// Path of the HTML to Sanity Portable Text conversion JSON file.
-	transformedBlockContent string
 }
 
-// js represents paths of JS files and I/O.
+// js represents paths of JS files and I/O. The value of these fields
+// should mirror those of the same name in the index.js script; however,
+// just with a different directory path.
+//
+// As an aside, these can be turned into environment variables.
 type js struct {
 	// Path of the main JS file, like index.js.
 	indexJsPath string
@@ -270,6 +242,9 @@ type js struct {
 
 	// Path of the transformed inputHtmlPath.
 	outputHtmlPath string
+
+	// Path of the HTML to Sanity Portable Text conversion JSON file.
+	transformedBlockContent string
 }
 
 // mappings are mappings between Wordpress and Sanity data. They are then used

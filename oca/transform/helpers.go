@@ -1,47 +1,35 @@
 package main
 
 import (
-	"crypto/rand"
 	"fmt"
+	"io"
+	"os"
+
+	"github.com/google/uuid"
 )
 
-// whatWgRND creates a byte array of values that follow the WHATWG crypto RNG standard.
-// See: WHATWG crypto RNG - https://w3c.github.io/webcrypto/Overview.html
-func whatWgRNG(l uint8) ([]byte, error) {
-	b := make([]byte, l)
-
-	_, err := rand.Read(b)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
+// ocaUUID prepends `oca-` to the front of a given UUID so the data objects that
+// came from OCA can be identified just by their ID. Also, if in the future,
+// there needs to be another transition, sorting data by organization is simple.
+func ocaUUID(gen uuid.UUID) string {
+	return fmt.Sprintf("oca-%s", gen.String())
 }
 
-// generateByteToHex generates a 256 array of bytes in hexadecimal format.
-func generateByteToHex() []string {
-	byteToHex := make([]string, 256)
-	for i := 0; i < len(byteToHex); i++ {
-		byteToHex[i] = fmt.Sprintf("%02x", i+0x100)
-	}
-	return byteToHex
-}
-
-// randomKey generates a random key given a length.
-func randomKey(l uint8) (string, error) {
-
-	byteToHex := generateByteToHex()
-
-	rnds, err := whatWgRNG(l)
+// getByteValue opens a JSON file at the given path and reads it into a byte
+// array. The file is deferred to close. An error is returned if the file
+// cannot be opened or read.
+func getByteValue(p string) ([]byte, error) {
+	jsonFile, err := os.Open(p)
 	if err != nil {
-		return "", err
+		return []byte{}, err
 	}
 
-	result := ""
+	defer jsonFile.Close()
 
-	for _, b := range rnds {
-		result += byteToHex[b]
+	byteValue, err := io.ReadAll(jsonFile)
+	if err != nil {
+		return []byte{}, err
 	}
 
-	return result[:l], nil
+	return byteValue, nil
 }

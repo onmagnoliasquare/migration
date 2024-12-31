@@ -28,15 +28,15 @@ const processHtmlFile = (filePath, outputFilePath) => {
 };
 
 // Input and output file paths
-const input = "./index.html";
-const out = "output/transformed_block_content.html";
+const inputHtmlPath = "./index.html";
+const outputHtmlPath = "output/transformed_block_content.html";
 
 // Process the file
-processHtmlFile(input, out);
+processHtmlFile(inputHtmlPath, outputHtmlPath);
 
 let htmlContent;
 
-const filePath = path.resolve(out);
+const filePath = path.resolve(outputFilePath);
 try {
   htmlContent = fs.readFileSync(filePath, "utf8");
 } catch (error) {
@@ -196,7 +196,7 @@ const writeBlocksToFile = (filePath, data) => {
 };
 
 // Specify the output file path
-const outputFilePath = "./output/transformed_block_output.json";
+const transformedBlockContent = "./output/transformed_block_output.json";
 
 // Write the blocks data to the JSON file
-writeBlocksToFile(outputFilePath, blocks);
+writeBlocksToFile(transformedBlockContent, blocks);

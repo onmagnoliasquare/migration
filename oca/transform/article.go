@@ -52,7 +52,7 @@ func execNodeScript(config config) ([]byte, error) {
 func readBackContent(config config) ([]contentBlock, error) {
 	content := []contentBlock{}
 
-	byteValue, err := getByteValue(config.outputs.transformedBlockContent)
+	byteValue, err := getByteValue(config.js.transformedBlockContent)
 	if err != nil {
 		return nil, err
 	}

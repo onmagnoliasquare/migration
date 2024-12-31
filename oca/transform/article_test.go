@@ -66,7 +66,7 @@ func TestReadBackContent(t *testing.T) {
 	}
 
 	c := config{
-		outputs: outputs{
+		js: js{
 			transformedBlockContent: "./tests/js/transformed_block_output.json",
 		},
 	}
