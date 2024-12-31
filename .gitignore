@@ -135,6 +135,7 @@ dist
 *.xml
 *.json
 *.ndjson
+*.html
 
 # oca-specific
 # Ignore big SQL file, as this exists in the oca-data repo in our org: https://github.com/onmagnoliasquare/oca
@@ -143,3 +144,9 @@ oca/scripts/*.sql
 .idea
 
 node_modules
+
+oca/input/**/*
+oca/output/**/*
+
+!oca/transform/tests/js/index.html
+!oca/transform/tests/js/input.html
