@@ -141,3 +141,5 @@ dist
 oca/scripts/*.sql
 
 .idea
+
+node_modules
