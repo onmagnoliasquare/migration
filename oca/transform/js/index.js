@@ -166,6 +166,31 @@ const blocks = htmlToBlocks(htmlContent, blockContentType, {
         if (el.nodeName.toLowerCase() !== "img") {
           return undefined;
         }
+
+        // If the <img> element has an src that is a `googleusercontent.com`
+        // related domain, return a text block rather than an image one. Some of
+        // the links here are dead and must be changed manually. Turning it into
+        // a text block makes it obvious which links must be converted.
+
+        if (el.getAttribute("src").includes("googleusercontent")) {
+          return normalizeBlock(
+            block({
+              style: "normal",
+              markDefs: [],
+              children: [
+                {
+                  _type: "span",
+                  marks: [],
+                  text: el.getAttribute("src"),
+                },
+              ],
+              _type: "block",
+            })
+          );
+        }
+
+        // Otherwise, return a normal image type block.
+
         return normalizeBlock(
           block({
             _type: "image",
