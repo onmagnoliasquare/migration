@@ -93,9 +93,21 @@ func main() {
 
 	// Phase 3: from the new data, assemble articles to upload.
 	{
+		byteValue, err := getByteValue(config.inputs.ocaPosts)
+		if err != nil {
+			panic(err)
+		}
 
+		exportString, err := transformArticles(byteValue, *mappings, config)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		err = os.WriteFile(config.outputs.transformedOcaTags, []byte(exportString), 0644)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
-
 }
 
 // transformUsers transforms data in a `json` file into the schema of a new
@@ -179,8 +191,29 @@ func transformTags(byteValue []byte, um map[string]bool) (string, error) {
 	return exportString, nil
 }
 
-func transformArticles(byteValue []byte) (string, error) {
+func transformArticles(byteValue []byte, m mappings, c config) (string, error) {
+	var ocaArticles []ocaArticle
 	var exportString string
+	var newArticles []string
+
+	json.Unmarshal(byteValue, &ocaArticles)
+
+	for _, v := range ocaArticles {
+		article, err := newArticle(v, m, c)
+		if err != nil {
+			return "", err
+		}
+
+		newArticle, err := json.MarshalIndent(article, " ", "  ")
+		if err != nil {
+			return "", err
+		}
+
+		newArticles = append(newArticles, string(newArticle))
+	}
+
+	exportString = strings.Join(newArticles, ",")
+	exportString = fmt.Sprintf("[%s]", exportString)
 
 	return exportString, nil
 }
