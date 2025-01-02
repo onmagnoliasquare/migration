@@ -18,14 +18,14 @@ type article struct {
 	Slug         slug           `json:"slug"`
 	Title        string         `json:"title"`
 	Subtitle     string         `json:"subtitle"`
-	Abstract     string         `json:"abstract"`
-	Authors      []refAuthor    `json:"authors"`
+	Abstract     string         `json:"abstract,omitempty"`
+	Authors      []reference    `json:"authors"`
 	Date         string         `json:"date"`
 	CreatedAt    string         `json:"_createdAt"`
 	UpdatedAt    string         `json:"_updatedAt"`
 	Content      []contentBlock `json:"content"`
-	Tags         []refTag       `json:"tags"`
-	Category     refCategory    `json:"category"`
+	Tags         []reference    `json:"tags"`
+	Category     reference      `json:"category"`
 	UseCustomCss bool           `json:"useCustomCss"`
 }
 
@@ -46,19 +46,19 @@ type article struct {
 func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 
 	// Write the post_content to an HTML file.
-	err := writeToFile(a.PostContent, config)
+	err := writeToFile(a.PostContent, config.js.inputHtmlPath)
 	if err != nil {
 		return nil, err
 	}
 
 	// Execute the node script to transform HTML into PortableText blocks.
-	_, err = execNodeScript(config)
+	_, err = execNodeScript(config.js.indexJsPath)
 	if err != nil {
 		return nil, err
 	}
 
 	// Read back the JSON data into content.
-	content, err := readBackContent(config)
+	content, err := readBackContent(config.js.transformedBlockOutput)
 	if err != nil {
 		return nil, err
 	}
@@ -80,23 +80,21 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 	}
 
 	// Create the publish date.
-	publishDate, err := time.Parse("2006-01-02 03:04:05", a.PostModifiedGMT)
+	publishDate, err := time.Parse("2006-01-02 15:04:05", a.PostDateGMT)
 	if err != nil {
 		return nil, err
 	}
 
 	// There is no need to populate the array here with multiple authors,
 	// because the Wordpress articles only have one author each.
-	authors := []refAuthor{
+	authors := []reference{
 		{
-			document: document{
-				Type: "author",
-			},
-			Ref: m.Id2AuthorRef[a.PostAuthor],
+			Type: "author",
+			Ref:  m.AuthorName2SanityAuthorRef[m.AuthorId2AuthorName[a.PostAuthor]],
 		},
 	}
 
-	tags := []refTag{}
+	tags := []reference{}
 	tags = append(tags, newRefTag(m.TagSlug2SanityTagId["on-century-avenue"]))
 
 	// If a category no longer exists, add the corresponding existing tag to
@@ -104,7 +102,7 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 
 	oldCategorySlug := m.CategoryId2CategorySlug[m.WordpressId2WordpressCategoryId[a.Id]]
 
-	if _, ok := m.sanityCategories[oldCategorySlug]; !ok {
+	if _, ok := m.SanityCategories[oldCategorySlug]; !ok {
 
 		oldCatRefTag := newRefTag("")
 
@@ -150,10 +148,18 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 		tags = append(tags, newRefTag(m.TagSlug2SanityTagId[v]))
 	}
 
-	category := refCategory{
+	category := reference{
+		Type: "reference",
 		// From the old category slug, retrieve the new Sanity category's ID.
 		Ref: m.CategorySlug2SanityCategoryId[m.CategoryId2CategorySlug[m.WordpressId2WordpressCategoryId[a.Id]]],
 	}
+
+	title := strings.ReplaceAll(a.PostTitle, `\`, ``)
+
+	// DateOnly format is YYYY-MM-DD.
+	date := publishDate.Format(time.DateOnly)
+
+	slug := newSlug(a.PostName)
 
 	uid := uuid.New()
 
@@ -166,12 +172,9 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 		// RFC3339Nano is YYYY-MM-DDTHH:MM:SSZ
 		CreatedAt: publishDate.Format(time.RFC3339Nano),
 
-		Title: a.PostTitle,
-		Slug:  newSlug(a.PostName),
-
-		// DateOnly format is YYYY-MM-DD.
-		Date: publishDate.Format(time.DateOnly),
-
+		Title:        title,
+		Slug:         slug,
+		Date:         date,
 		Authors:      authors,
 		Category:     category,
 		Tags:         tags,
@@ -190,8 +193,8 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 
 // writeToFile writes an HTML string to an HTML file at the path specified
 // by config.
-func writeToFile(html string, config config) error {
-	err := os.WriteFile(config.js.inputHtmlPath, []byte(html), 0644)
+func writeToFile(html string, p string) error {
+	err := os.WriteFile(p, []byte(html), 0644)
 	if err != nil {
 		return err
 	}
@@ -201,12 +204,17 @@ func writeToFile(html string, config config) error {
 // execNodeScript executes a Node.js script at the path specified by the
 // indexJsPath field of the js struct. The function returns the output of the
 // script as a byte array, or an error if the command fails.
-func execNodeScript(config config) ([]byte, error) {
-	cmd := exec.Command(NODE_PATH, config.js.indexJsPath)
+func execNodeScript(p string) ([]byte, error) {
+	// Get the current PATH and add the Node.js binary path
+	currentPath := os.Getenv("PATH")
+	os.Setenv("PATH", fmt.Sprintf("%s:%s", NODE_PATH, currentPath))
+	// fmt.Println(os.Getenv("PATH"))
+
+	cmd := exec.Command("node", p)
 
 	d, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute node command: %s", err)
+		return nil, fmt.Errorf("error: %v", err)
 	}
 
 	return d, nil
@@ -214,10 +222,10 @@ func execNodeScript(config config) ([]byte, error) {
 
 // readBackContent unmarshals the JSON data from config's
 // transformedBlockContent into an array of contentBlocks.
-func readBackContent(config config) ([]contentBlock, error) {
+func readBackContent(p string) ([]contentBlock, error) {
 	content := []contentBlock{}
 
-	byteValue, err := getByteValue(config.js.transformedBlockContent)
+	byteValue, err := getByteValue(p)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +292,7 @@ func retrieveImageRef(m mappings) func(s string) (string, error) {
 		// ID map. These IDs are from Sanity.
 		ref, ok := m.SanityImageFilename2SanityImageId[s]
 		if !ok {
-			return "", fmt.Errorf("image filename not in Sanity mapping: %s", s)
+			return "", fmt.Errorf("image filename not in Sanity mapping: %v", s)
 		}
 
 		return ref, nil
@@ -294,7 +302,7 @@ func retrieveImageRef(m mappings) func(s string) (string, error) {
 type contentBlock struct {
 	document
 	MarkDefs []string       `json:"markDefs,omitempty"`
-	Children []contentBlock `json:"children"`
+	Children []contentBlock `json:"children,omitempty"`
 	Style    string         `json:"style,omitempty"`
 	Marks    []string       `json:"marks,omitempty"`
 
@@ -302,8 +310,8 @@ type contentBlock struct {
 	Text string `json:"text,omitempty"`
 
 	// Image block type
-	Alt   string    `json:"alt,omitempty"`
-	Asset reference `json:"asset,omitempty"`
+	Alt   string     `json:"alt,omitempty"`
+	Asset *reference `json:"asset,omitempty"`
 }
 
 // walkContentBlocks walks through each child of a contentBlock array. It finds
@@ -339,51 +347,14 @@ func walkContentBlocks(t string, c []contentBlock, edits []func(s string) (strin
 }
 
 type reference struct {
-	Ref  string `json:"_ref"`
-	Type string `json:"_type"`
+	Id   string `json:"_id,omitempty"`
+	Type string `json:"_type,omitempty"`
+	Ref  string `json:"_ref,omitempty"`
 }
 
-// refAuthor mirrors the author reference field of a Sanity document.
-type refAuthor struct {
-	document
-
-	// Ref is the `_id` of the Member document.
-	// See: https://www.sanity.io/docs/reference-type#e97572ca6050
-	Ref string `json:"_ref"`
-}
-
-// refCategory mirrors the category reference field of a Sanity document.
-type refCategory struct {
-	document
-
-	// Ref is the `_id` of the Category document.
-	// See: https://www.sanity.io/docs/reference-type#e97572ca6050
-	Ref string `json:"_ref"`
-}
-
-func newRefCategory(ref string) refCategory {
-	return refCategory{
-		document: document{
-			Type: "reference",
-		},
-		Ref: ref,
-	}
-}
-
-// refTag mirrors the tag reference field of a Sanity document.
-type refTag struct {
-	document
-
-	// Ref is the `_id` of the Tag document.
-	// See: https://www.sanity.io/docs/reference-type#e97572ca6050
-	Ref string `json:"_ref"`
-}
-
-func newRefTag(ref string) refTag {
-	return refTag{
-		document: document{
-			Type: "tag",
-		},
-		Ref: ref,
+func newRefTag(ref string) reference {
+	return reference{
+		Type: "tag",
+		Ref:  ref,
 	}
 }
