@@ -277,6 +277,12 @@ func TestNewArticle(t *testing.T) {
 		t.Errorf("got %s, want %s", articleDate, "2014-02-01")
 	}
 
+	// Check if category is correct.
+	articleCategory := article.Category
+	if articleCategory.Ref != "sanity-category-id-abcdefg" {
+		t.Errorf("got %s, want %s", articleCategory.Ref, "sanity-category-id-abcdefg")
+	}
+
 	// Check if slug is correct.
 	articleSlug := article.Slug.Current
 	if articleSlug != "the-grey-horse-nebraska" {
