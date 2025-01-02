@@ -28,8 +28,13 @@ const processHtmlFile = (filePath, outputFilePath) => {
 };
 
 // Input and output file paths
-const inputHtmlPath = "./index.html";
-const outputHtmlPath = "output/transformed_block_content.html";
+// const inputHtmlPath = "./index.html";
+// const outputHtmlPath = "output/transformed_block_content.html";
+// const transformedBlockContent = "./output/transformed_block_output.json";
+
+const inputHtmlPath = process.argv[0];
+const outputHtmlPath = process.argv[1];
+const transformedBlockContent = process.argv[2];
 
 // Process the file
 processHtmlFile(inputHtmlPath, outputHtmlPath);
@@ -219,9 +224,6 @@ const writeBlocksToFile = (filePath, data) => {
     console.error(`Error writing to file at ${fullPath}:`, error);
   }
 };
-
-// Specify the output file path
-const transformedBlockContent = "./output/transformed_block_output.json";
 
 // Write the blocks data to the JSON file
 writeBlocksToFile(transformedBlockContent, blocks);
