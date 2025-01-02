@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const NODE_PATH = "/run/current-system/sw/bin"
+const NODE_PATH = "/opt/homebrew/bin/node"
 
 func main() {
 
@@ -24,8 +24,9 @@ func main() {
 
 	config := config{
 		inputs: inputs{
-			ocaUsers:                 "../input/oca_users.json",
-			ocaPosts:                 "../input/oca_get_posts.json",
+			ocaUsers: "../input/oca_users.json",
+			// ocaPosts:                 "../input/oca_get_posts.json",
+			ocaPosts:                 "../input/oca_article_test_1.json",
 			ocaTermRelationships:     "../input/oca_term_relationships-all.json",
 			ocaPostIdAndCategoryId:   "../input/oca_post_id_to_category_id.json",
 			ocaCategorySlugAndId:     "../input/oca_terms-categories.json",
@@ -37,7 +38,9 @@ func main() {
 			sanityAuthorIds:          "../input/sanity_author_ids.json",
 		},
 		outputs: outputs{
-			transformedOcaUsers: "../output/transformed_oca_users.json",
+			transformedOcaUsers:    "../output/transformed_oca_users.json",
+			transformedOcaTags:     "../output/transformed_oca_tags.json",
+			transformedOcaArticles: "../output/transformed_oca_articles.json",
 		},
 		js: js{
 			indexJsPath:            "./js/index.js",
@@ -47,67 +50,116 @@ func main() {
 		},
 	}
 
-	mappings, err := newMappings(config)
-	if err != nil {
-		panic(err)
+	var mappings *mappings
+
+	// Phase 0: Generate mappings based on config.
+	{
+		fmt.Println()
+		fmt.Println("=====================")
+		fmt.Println("= BEGINNING PHASE 0 =")
+		fmt.Println("=====================")
+
+		mappings, err = newMappings(config)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	// Phase 1: get Authors, Tags, and Categories.
 	{
+		fmt.Println()
+		fmt.Println("=====================")
+		fmt.Println("= BEGINNING PHASE 1 =")
+		fmt.Println("=====================")
+
+		fmt.Println("Reading OCA users...")
+
 		byteValue, err := getByteValue(config.inputs.ocaUsers)
 		if err != nil {
 			panic(err)
 		}
+
+		fmt.Println("Attempting to transform users...")
 
 		exportString, err := transformUsers(byteValue)
 		if err != nil {
 			fmt.Println(err)
 		}
 
-		err = os.WriteFile(config.outputs.transformedOcaTags, []byte(exportString), 0644)
+		transformedOcaUsersPath := config.outputs.transformedOcaUsers
+
+		err = os.WriteFile(transformedOcaUsersPath, []byte(exportString), 0644)
 		if err != nil {
 			fmt.Println(err)
 		}
 
+		fmt.Printf("  - User transforms written to: %s\n", transformedOcaUsersPath)
+
 		// Get tags.
+
+		fmt.Println("Reading OCA tags...")
 
 		byteValue, err = getByteValue(config.inputs.ocaAllTerms)
 		if err != nil {
 			panic(err)
 		}
 
+		fmt.Println("Attempting to transform tags...")
+
 		exportString, err = transformTags(byteValue, mappings.authorMap)
 		if err != nil {
 			fmt.Println(err)
 		}
 
-		err = os.WriteFile(config.outputs.transformedOcaTags, []byte(exportString), 0644)
+		transformedTagsPath := config.outputs.transformedOcaTags
+
+		err = os.WriteFile(transformedTagsPath, []byte(exportString), 0644)
 		if err != nil {
 			fmt.Println(err)
 		}
+
+		fmt.Printf("  - Tag transforms written to: %s\n", transformedTagsPath)
 	}
 
-	// Phase 2: Upload The Authors and Tags to Sanity, along with media like
-	// images. This should be done before Phase 3 begins. This phase is semi-
+	// Phase 1.5: Upload The Authors and Tags to Sanity, along with media like
+	// images. This should be done before Phase 2 begins. This phase is semi-
 	// automatic and is not executed by this program.
 
-	// Phase 3: from the new data, assemble articles to upload.
+	// Phase 2: from the new data, assemble articles to upload.
 	{
-		byteValue, err := getByteValue(config.inputs.ocaPosts)
+		fmt.Println()
+		fmt.Println("=====================")
+		fmt.Println("= BEGINNING PHASE 2 =")
+		fmt.Println("=====================")
+
+		ocaPostsPath := config.inputs.ocaPosts
+
+		byteValue, err := getByteValue(ocaPostsPath)
 		if err != nil {
 			panic(err)
 		}
+
+		fmt.Printf("Retrieved posts from: %s\n", ocaPostsPath)
+
+		fmt.Println("Attempting to transform articles...")
 
 		exportString, err := transformArticles(byteValue, *mappings, config)
 		if err != nil {
 			fmt.Println(err)
 		}
 
-		err = os.WriteFile(config.outputs.transformedOcaTags, []byte(exportString), 0644)
+		fmt.Println("Articles transformed successfully.")
+
+		articleOutputPath := config.outputs.transformedOcaArticles
+
+		err = os.WriteFile(articleOutputPath, []byte(exportString), 0644)
 		if err != nil {
 			fmt.Println(err)
 		}
+
+		fmt.Printf("  - Article transforms written to: %s\n", articleOutputPath)
 	}
+
 }
 
 // transformUsers transforms data in a `json` file into the schema of a new
@@ -154,7 +206,7 @@ func transformTags(byteValue []byte, um map[string]bool) (string, error) {
 	for i := 0; i < len(oldTags); i++ {
 		// First check if this tag is a NetID. If so, skip it.
 		if um[oldTags[i].Name] {
-			fmt.Printf("%s is a Net ID, skipping...\n", oldTags[i].Name)
+			// fmt.Printf("%s is a Net ID, skipping...\n", oldTags[i].Name)
 			continue
 		}
 
@@ -337,6 +389,9 @@ type outputs struct {
 
 	// Path of users in Sanity JSON format.
 	transformedOcaUsers string
+
+	// Path of articles in Sanity JSON format.
+	transformedOcaArticles string
 }
 
 // js represents paths of JS files and I/O. The file in of these fields
@@ -450,7 +505,7 @@ func newMappings(config config) (*mappings, error) {
 
 		TagSlug2SanityTagId: map[string]string{
 			// The values here are populated by importing JSON data.
-			"china-global":           "",
+			"chineseglobal":          "",
 			"business-and-economics": "",
 			"events":                 "",
 			"uncategorized":          "",
@@ -535,6 +590,8 @@ func newMappings(config config) (*mappings, error) {
 		TagSlugs2WordpressPostId: make(map[string][]int),
 	}
 
+	var count int
+
 	// Populate the authorMap.
 
 	byteValue, err := getByteValue(config.inputs.ocaUsers)
@@ -560,7 +617,7 @@ func newMappings(config config) (*mappings, error) {
 
 	// Populate the Author Name to Sanity Ref Map.
 
-	byteValue, err = getByteValue(config.inputs.ocaPostIdAndCategoryId)
+	byteValue, err = getByteValue(config.inputs.sanityAuthorIds)
 	if err != nil {
 		return nil, err
 	}
@@ -575,43 +632,24 @@ func newMappings(config config) (*mappings, error) {
 		return nil, err
 	}
 
-	for _, v := range r {
+	for i, v := range r {
+		// If a name already exists in the dataset for OCA in our current
+		// database, skip the mapping.
+
 		mappings.SanityAuthorRef2AuthorName[v.Id] = v.AuthorName
+		// fmt.Printf("Mapped %s to %s\n", v.Id, v.AuthorName)
 		mappings.AuthorName2SanityAuthorRef[v.AuthorName] = v.Id
+		// fmt.Printf("Mapped %s to %s\n", v.AuthorName, v.Id)
+		count = i
 	}
 
-	// Populate the Wordpress ID to Wordpress Category maps.
+	fmt.Printf("Mapped %d authors to Sanity IDs\n", count)
 
-	byteValue, err = getByteValue(config.inputs.ocaPostIdAndCategoryId)
-	if err != nil {
-		return nil, err
-	}
-
-	d := []struct {
-		PostId     int `json:"post_id"`
-		CategoryId int `json:"category_id"`
-	}{}
-
-	err = json.Unmarshal(byteValue, &d)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, v := range d {
-		mappings.WordpressId2WordpressCategoryId[v.PostId] = v.CategoryId
-
-		_, ok := mappings.WordpressCategoryId2WordpressId[v.CategoryId]
-
-		if !ok {
-			mappings.WordpressCategoryId2WordpressId[v.CategoryId] = []int{v.PostId}
-		} else {
-			mappings.WordpressCategoryId2WordpressId[v.CategoryId] = append(mappings.WordpressCategoryId2WordpressId[v.CategoryId], v.PostId)
-		}
-	}
+	count = 0
 
 	// Populate the Category ID to Category Slug maps.
 
-	byteValue, err = getByteValue(config.inputs.ocaPostIdAndCategoryId)
+	byteValue, err = getByteValue(config.inputs.ocaCategorySlugAndId)
 	if err != nil {
 		return nil, err
 	}
@@ -631,6 +669,44 @@ func newMappings(config config) (*mappings, error) {
 		mappings.CategorySlug2CategoryId[v.Slug] = v.TermId
 	}
 
+	PrintJSON(mappings.CategorySlug2CategoryId)
+	PrintJSON(mappings.CategoryId2CategorySlug)
+
+	// Populate the Wordpress ID to Wordpress Category maps.
+
+	byteValue, err = getByteValue(config.inputs.ocaPostIdAndCategoryId)
+	if err != nil {
+		return nil, err
+	}
+
+	d := []struct {
+		PostId     int `json:"post_id"`
+		CategoryId int `json:"category_id"`
+	}{}
+
+	err = json.Unmarshal(byteValue, &d)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, v := range d {
+		mappings.WordpressId2WordpressCategoryId[v.PostId] = v.CategoryId
+
+		_, ok := mappings.WordpressCategoryId2WordpressId[v.CategoryId]
+
+		if !ok {
+			mappings.WordpressCategoryId2WordpressId[v.CategoryId] = []int{v.PostId}
+		} else {
+			mappings.WordpressCategoryId2WordpressId[v.CategoryId] = append(mappings.WordpressCategoryId2WordpressId[v.CategoryId], v.PostId)
+		}
+
+		count = i
+	}
+
+	fmt.Printf("Mapped %d posts to categories\n", count)
+
+	count = 0
+
 	// Add Tags to Wordpress Post IDs.
 
 	byteValue, err = getByteValue(config.inputs.ocaPostIdAndTagSlug)
@@ -648,7 +724,7 @@ func newMappings(config config) (*mappings, error) {
 		return nil, err
 	}
 
-	for _, v := range t {
+	for i, v := range t {
 		// If the entry doesn't exist, make a new array.
 		if _, ok := mappings.WordpressPostId2TagSlugs[v.PostId]; !ok {
 			mappings.WordpressPostId2TagSlugs[v.PostId] = make([]string, 0)
@@ -656,7 +732,13 @@ func newMappings(config config) (*mappings, error) {
 
 		// Add the entry to the map.
 		mappings.WordpressPostId2TagSlugs[v.PostId] = append(mappings.WordpressPostId2TagSlugs[v.PostId], v.TagSlug)
+
+		count = i
 	}
+
+	fmt.Printf("Mapped %d tags to posts\n", count)
+
+	count = 0
 
 	// Populate Sanity Media name and Refs.
 
@@ -698,11 +780,40 @@ func newMappings(config config) (*mappings, error) {
 		return nil, err
 	}
 
-	for _, v := range n {
+	for i, v := range n {
 		mappings.TagSlug2SanityTagId[v.Slug] = v.RefId
 		mappings.SanityTagId2TagSlug[v.RefId] = v.Slug
+		count = i
 	}
 
+	fmt.Printf("Mapped %d unique tags to Sanity IDs\n", count)
+
+	count = 0
+
+	byteValue, err = getByteValue(config.inputs.sanityCategorySlugsAndId)
+	if err != nil {
+		return nil, err
+	}
+
+	m := []struct {
+		RefId string `json:"refId"`
+		Slug  string `json:"slug"`
+	}{}
+
+	err = json.Unmarshal(byteValue, &m)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, v := range m {
+		mappings.CategorySlug2SanityCategoryId[v.Slug] = v.RefId
+		mappings.SanityCategoryId2CategorySlug[v.RefId] = v.Slug
+		count = i
+	}
+
+	fmt.Printf("Mapped %d unique categories to Sanity IDs\n", count)
+
+	count = 0
 	return mappings, nil
 }
 
