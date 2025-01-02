@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -32,4 +33,10 @@ func getByteValue(p string) ([]byte, error) {
 	}
 
 	return byteValue, nil
+}
+
+// Retrieved from: https://old.reddit.com/r/golang/comments/gritgv/how_to_print_nicely_a_nested_struct/
+func PrintJSON(obj interface{}) {
+	bytes, _ := json.MarshalIndent(obj, " ", "   ")
+	fmt.Println(string(bytes))
 }
