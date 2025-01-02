@@ -28,20 +28,21 @@ const processHtmlFile = (filePath, outputFilePath) => {
 };
 
 // Input and output file paths
-// const inputHtmlPath = "./index.html";
-// const outputHtmlPath = "output/transformed_block_content.html";
-// const transformedBlockContent = "./output/transformed_block_output.json";
+// These file paths are from the perspective of main.go.
+const inputHtmlPath = "./js/index.html";
+const outputHtmlPath = "./js/output/transformed_block_content.html";
+const transformedBlockContent = "./js/output/transformed_block_output.json";
 
-const inputHtmlPath = process.argv[0];
-const outputHtmlPath = process.argv[1];
-const transformedBlockContent = process.argv[2];
+// const inputHtmlPath = process.argv[0];
+// const outputHtmlPath = process.argv[1];
+// const transformedBlockContent = process.argv[2];
 
 // Process the file
 processHtmlFile(inputHtmlPath, outputHtmlPath);
 
 let htmlContent;
 
-const filePath = path.resolve(outputFilePath);
+const filePath = path.resolve(outputHtmlPath);
 try {
   htmlContent = fs.readFileSync(filePath, "utf8");
 } catch (error) {
