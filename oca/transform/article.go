@@ -17,7 +17,7 @@ type article struct {
 	document
 	Slug         slug           `json:"slug"`
 	Title        string         `json:"title"`
-	Subtitle     string         `json:"subtitle"`
+	Subtitle     string         `json:"subtitle,omitempty"`
 	Abstract     string         `json:"abstract,omitempty"`
 	Authors      []reference    `json:"authors"`
 	Date         string         `json:"date"`
@@ -96,6 +96,8 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 
 	tags := []reference{}
 	tags = append(tags, newRefTag(m.TagSlug2SanityTagId["on-century-avenue"]))
+	fmt.Println("Added on-century-avenue tag to article.")
+	PrintJSON(tags)
 
 	// If a category no longer exists, add the corresponding existing tag to
 	// the new Sanity Article.
@@ -104,7 +106,7 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 
 	if _, ok := m.SanityCategories[oldCategorySlug]; !ok {
 
-		oldCatRefTag := newRefTag("")
+		var oldCatRefTag reference
 
 		switch oldCategorySlug {
 
@@ -113,29 +115,31 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 		// imperative.
 
 		case "%e4%b8%ad%e6%96%87":
-			oldCatRefTag.Id = m.TagSlug2SanityTagId["中文"]
+			oldCatRefTag = newRefTag(m.TagSlug2SanityTagId["中文"])
 		case "student-government":
-			oldCatRefTag.Id = m.TagSlug2SanityTagId["student-government"]
+			oldCatRefTag = newRefTag(m.TagSlug2SanityTagId["student-government"])
 		case "campus-life":
-			oldCatRefTag.Id = m.TagSlug2SanityTagId["campus-life"]
+			oldCatRefTag = newRefTag(m.TagSlug2SanityTagId["campus-life"])
 		case "events":
-			oldCatRefTag.Id = m.TagSlug2SanityTagId["events"]
+			oldCatRefTag = newRefTag(m.TagSlug2SanityTagId["events"])
 		case "food-and-nightlife":
-			oldCatRefTag.Id = m.TagSlug2SanityTagId["food-and-nightlife"]
+			oldCatRefTag = newRefTag(m.TagSlug2SanityTagId["food-and-nightlife"])
 		case "fashion":
-			oldCatRefTag.Id = m.TagSlug2SanityTagId["fashion"]
+			oldCatRefTag = newRefTag(m.TagSlug2SanityTagId["fashion"])
 		case "lifestyle":
-			oldCatRefTag.Id = m.TagSlug2SanityTagId["lifestyle"]
+			oldCatRefTag = newRefTag(m.TagSlug2SanityTagId["lifestyle"])
 		case "off-campus":
-			oldCatRefTag.Id = m.TagSlug2SanityTagId["off-campus"]
+			oldCatRefTag = newRefTag(m.TagSlug2SanityTagId["off-campus"])
 		case "how-to-get-an-a":
-			oldCatRefTag.Id = m.TagSlug2SanityTagId["how-to-get-an-a"]
+			oldCatRefTag = newRefTag(m.TagSlug2SanityTagId["how-to-get-an-a"])
 		case "multilingual":
-			oldCatRefTag.Id = m.TagSlug2SanityTagId["multilingual"]
+			oldCatRefTag = newRefTag(m.TagSlug2SanityTagId["multilingual"])
 		case "business-and-economics":
-			oldCatRefTag.Id = m.TagSlug2SanityTagId["business-and-economics"]
+			oldCatRefTag = newRefTag(m.TagSlug2SanityTagId["business-and-economics"])
 		case "chineseglobal":
-			oldCatRefTag.Id = m.TagSlug2SanityTagId["china-global"]
+			oldCatRefTag = newRefTag(m.TagSlug2SanityTagId["china-global"])
+		case "uncategorized":
+			oldCatRefTag = newRefTag(m.TagSlug2SanityTagId["lifestyle"])
 		}
 
 		tags = append(tags, oldCatRefTag)
@@ -144,20 +148,30 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 	// Then according to the old tags of the article, append those too.
 
 	tagSlugs := m.WordpressPostId2TagSlugs[a.Id]
+	fmt.Println(tagSlugs)
 	for _, v := range tagSlugs {
-		tags = append(tags, newRefTag(m.TagSlug2SanityTagId[v]))
+		sanityTagId, ok := m.TagSlug2SanityTagId[v]
+		if !ok || sanityTagId == "" {
+			continue
+		}
+		tags = append(tags, newRefTag(sanityTagId))
+		fmt.Println(tags)
 	}
+
+	// This is too unreadable.
+	categoryRef := m.CategorySlug2SanityCategoryId[m.WordpressCategorySlug2SanityCategorySlug[m.CategoryId2CategorySlug[m.WordpressId2WordpressCategoryId[a.Id]]]]
 
 	category := reference{
 		Type: "reference",
 		// From the old category slug, retrieve the new Sanity category's ID.
-		Ref: m.CategorySlug2SanityCategoryId[m.CategoryId2CategorySlug[m.WordpressId2WordpressCategoryId[a.Id]]],
+		Ref: categoryRef,
 	}
 
 	title := strings.ReplaceAll(a.PostTitle, `\`, ``)
 
 	// DateOnly format is YYYY-MM-DD.
 	date := publishDate.Format(time.DateOnly)
+	// date := publishDate.Format(time.RFC3339Nano)
 
 	slug := newSlug(a.PostName)
 
@@ -170,8 +184,8 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 		},
 
 		// RFC3339Nano is YYYY-MM-DDTHH:MM:SSZ
-		CreatedAt: publishDate.Format(time.RFC3339Nano),
-
+		CreatedAt:    publishDate.Format(time.RFC3339Nano),
+		UpdatedAt:    publishDate.Format(time.RFC3339Nano),
 		Title:        title,
 		Slug:         slug,
 		Date:         date,
@@ -206,11 +220,12 @@ func writeToFile(html string, p string) error {
 // script as a byte array, or an error if the command fails.
 func execNodeScript(p string) ([]byte, error) {
 	// Get the current PATH and add the Node.js binary path
-	currentPath := os.Getenv("PATH")
-	os.Setenv("PATH", fmt.Sprintf("%s:%s", NODE_PATH, currentPath))
+	// currentPath := os.Getenv("PATH")
+	// os.Setenv("PATH", fmt.Sprintf("%s:%s", NODE_PATH, currentPath))
 	// fmt.Println(os.Getenv("PATH"))
 
-	cmd := exec.Command("node", p)
+	// cmd := exec.Command("node", p)
+	cmd := exec.Command(NODE_PATH, p)
 
 	d, err := cmd.Output()
 	if err != nil {
