@@ -14,6 +14,7 @@ const processHtmlFile = (filePath, outputFilePath) => {
 
     // Replace \r\n with <br> and \" with "
     const modifiedContent = htmlContent
+      .replace(/\u00A0/g, " ")
       .replace(/\\r\\n/g, "<br>")
       .replace(/\\n/g, "<br>")
       .replace(/\\"/g, '"')
@@ -128,28 +129,28 @@ const blockContentType = defaultSchema
 const blocks = htmlToBlocks(htmlContent, blockContentType, {
   parseHtml: (html) => new JSDOM(html).window.document,
   rules: [
-    // {
-    //   // Makes <br> turn into ""
-    //   deserialize(el, next, block) {
-    //     if (el.nodeName.toLowerCase() !== "br") {
-    //       return undefined;
-    //     }
-    //     return normalizeBlock(
-    //       block({
-    //         style: "normal",
-    //         markDefs: [],
-    //         children: [
-    //           {
-    //             _type: "span",
-    //             marks: [],
-    //             text: "",
-    //           },
-    //         ],
-    //         _type: "block",
-    //       })
-    //     );
-    //   },
-    // },
+    {
+      // Makes <br> turn into ""
+      deserialize(el, next, block) {
+        if (el.nodeName.toLowerCase() !== "br") {
+          return undefined;
+        }
+        return normalizeBlock(
+          block({
+            style: "normal",
+            markDefs: [],
+            children: [
+              {
+                _type: "span",
+                marks: [],
+                text: "",
+              },
+            ],
+            _type: "block",
+          })
+        );
+      },
+    },
     {
       // <img>
       deserialize(el, next, block) {
