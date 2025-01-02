@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const NODE_PATH = "/run/current-system/sw/bin/node"
+const NODE_PATH = "/run/current-system/sw/bin"
 
 func main() {
 
@@ -34,15 +34,16 @@ func main() {
 			sanityTagSlugAndRef:      "../input/sanity_tag_slug_and_ref.json",
 			sanityMediaNameAndRefs:   "../input/sanity_media_name_and_refs.json",
 			sanityCategorySlugsAndId: "../input/sanity_category_slugs_and_ids.json",
+			sanityAuthorIds:          "../input/sanity_author_ids.json",
 		},
 		outputs: outputs{
 			transformedOcaUsers: "../output/transformed_oca_users.json",
 		},
 		js: js{
-			indexJsPath:             "./js/index.js",
-			inputHtmlPath:           "./js/index.html",
-			outputHtmlPath:          "./js/output/output.html",
-			transformedBlockContent: "./js/output/transformed_block_output.json",
+			indexJsPath:            "./js/index.js",
+			inputHtmlPath:          "./js/index.html",
+			outputHtmlPath:         "./js/output/output.html",
+			transformedBlockOutput: "./js/output/transformed_block_output.json",
 		},
 	}
 
@@ -285,6 +286,16 @@ type inputs struct {
 	// 		"refId": _id
 	// }
 	sanityMediaNameAndRefs string
+
+	// A JSON file containing all Sanity member names and IDs.
+	//
+	// Sanity Query:
+	//
+	// *[_type == "member"] {
+	//   name,
+	//   _id
+	// }
+	sanityAuthorIds string
 }
 
 type outputs struct {
@@ -312,7 +323,7 @@ type js struct {
 	outputHtmlPath string
 
 	// Path of the HTML to Sanity Portable Text conversion JSON file.
-	transformedBlockContent string
+	transformedBlockOutput string
 }
 
 // mappings are mappings between Wordpress and Sanity data. They are then used
@@ -324,16 +335,16 @@ type mappings struct {
 
 	// Map of all current Sanity categories. This field is used to check
 	// whether a particular category exists in Sanity.
-	sanityCategories map[string]bool
+	SanityCategories map[string]bool
 
 	// Wordpress ID and Author Name.
-	Id2Author map[int]string
-	Author2Id map[string]int
+	AuthorId2AuthorName map[int]string
+	AuthorName2AuthorId map[string]int
 
 	// Wordpress Author ID and Sanity Author ID. This is used to populate
 	// the author reference fields of the article struct.
-	AuthorRef2Id map[string]int
-	Id2AuthorRef map[int]string
+	SanityAuthorRef2AuthorName map[string]string
+	AuthorName2SanityAuthorRef map[string]string
 
 	// Image asset ID on Sanity and the Wordpress image path. This is used to
 	// create image asset references for portable text content.
@@ -385,18 +396,18 @@ func newMappings(config config) (*mappings, error) {
 	mappings := &mappings{
 		authorMap: make(map[string]bool),
 
-		sanityCategories: map[string]bool{
+		SanityCategories: map[string]bool{
 			"news":    true,
 			"opinion": true,
 			"people":  true,
 			"culture": true,
 		},
 
-		Id2Author: make(map[int]string),
-		Author2Id: make(map[string]int),
+		AuthorId2AuthorName: make(map[int]string),
+		AuthorName2AuthorId: make(map[string]int),
 
-		AuthorRef2Id: make(map[string]int),
-		Id2AuthorRef: make(map[int]string),
+		SanityAuthorRef2AuthorName: make(map[string]string),
+		AuthorName2SanityAuthorRef: make(map[string]string),
 
 		SanityImageId2WordpressPath: make(map[string]string),
 		WordpressPath2SanityImageId: make(map[string]string),
@@ -491,7 +502,7 @@ func newMappings(config config) (*mappings, error) {
 		TagSlugs2WordpressPostId: make(map[string][]int),
 	}
 
-	// Populate the authorMap
+	// Populate the authorMap.
 
 	byteValue, err := getByteValue(config.inputs.ocaUsers)
 	if err != nil {
@@ -507,6 +518,33 @@ func newMappings(config config) (*mappings, error) {
 
 	for i := 0; i < len(authors); i++ {
 		mappings.authorMap[authors[i].UserLogin] = true
+
+		// Populate the Author ID to Author Name map
+		mappings.AuthorName2AuthorId[authors[i].Name] = authors[i].Id
+		mappings.AuthorId2AuthorName[authors[i].Id] = authors[i].Name
+
+	}
+
+	// Populate the Author Name to Sanity Ref Map.
+
+	byteValue, err = getByteValue(config.inputs.ocaPostIdAndCategoryId)
+	if err != nil {
+		return nil, err
+	}
+
+	r := []struct {
+		AuthorName string `json:"name"`
+		Id         string `json:"_id"`
+	}{}
+
+	err = json.Unmarshal(byteValue, &r)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, v := range r {
+		mappings.SanityAuthorRef2AuthorName[v.Id] = v.AuthorName
+		mappings.AuthorName2SanityAuthorRef[v.AuthorName] = v.Id
 	}
 
 	// Populate the Wordpress ID to Wordpress Category maps.
@@ -587,6 +625,8 @@ func newMappings(config config) (*mappings, error) {
 		mappings.WordpressPostId2TagSlugs[v.PostId] = append(mappings.WordpressPostId2TagSlugs[v.PostId], v.TagSlug)
 	}
 
+	// Populate Sanity Media name and Refs.
+
 	byteValue, err = getByteValue(config.inputs.sanityMediaNameAndRefs)
 	if err != nil {
 		return nil, err
@@ -608,7 +648,7 @@ func newMappings(config config) (*mappings, error) {
 		mappings.SanityImageId2SanityImageFilename[v.RefId] = v.File
 	}
 
-	// Populate Sanity Tag Slugs and Refs
+	// Populate Sanity Tag Slugs and Refs.
 
 	byteValue, err = getByteValue(config.inputs.sanityTagSlugAndRef)
 	if err != nil {
@@ -650,7 +690,7 @@ type slug struct {
 
 func newSlug(s string) slug {
 	return slug{
-		Type:    "_slug",
+		Type:    "slug",
 		Current: s,
 	}
 }
