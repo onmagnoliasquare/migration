@@ -42,7 +42,7 @@ func TestReadBackContent(t *testing.T) {
 	want := []contentBlock{
 		{
 			document: document{Type: "block"},
-			MarkDefs: []string{},
+			MarkDefs: []interface{}{},
 			Style:    "normal",
 			Children: []contentBlock{
 				{
@@ -61,7 +61,7 @@ func TestReadBackContent(t *testing.T) {
 					Text:     "What is your name?",
 				},
 			},
-			MarkDefs: []string{},
+			MarkDefs: []interface{}{},
 			Style:    "normal",
 		},
 	}

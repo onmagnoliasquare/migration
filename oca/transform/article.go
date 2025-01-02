@@ -96,8 +96,6 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 
 	tags := []reference{}
 	tags = append(tags, newRefTag(m.TagSlug2SanityTagId["on-century-avenue"]))
-	fmt.Println("Added on-century-avenue tag to article.")
-	PrintJSON(tags)
 
 	// If a category no longer exists, add the corresponding existing tag to
 	// the new Sanity Article.
@@ -148,14 +146,13 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 	// Then according to the old tags of the article, append those too.
 
 	tagSlugs := m.WordpressPostId2TagSlugs[a.Id]
-	fmt.Println(tagSlugs)
+	// fmt.Println(tagSlugs)
 	for _, v := range tagSlugs {
 		sanityTagId, ok := m.TagSlug2SanityTagId[v]
 		if !ok || sanityTagId == "" {
 			continue
 		}
 		tags = append(tags, newRefTag(sanityTagId))
-		fmt.Println(tags)
 	}
 
 	// This is too unreadable.
@@ -316,7 +313,7 @@ func retrieveImageRef(m mappings) func(s string) (string, error) {
 
 type contentBlock struct {
 	document
-	MarkDefs []string       `json:"markDefs,omitempty"`
+	MarkDefs []interface{}  `json:"markDefs,omitempty"`
 	Children []contentBlock `json:"children,omitempty"`
 	Style    string         `json:"style,omitempty"`
 	Marks    []string       `json:"marks,omitempty"`
