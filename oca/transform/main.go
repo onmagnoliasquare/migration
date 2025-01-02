@@ -24,13 +24,16 @@ func main() {
 
 	config := config{
 		inputs: inputs{
-			ocaCategories:          "../input/oca_terms-categories.json",
-			ocaUsers:               "../input/oca_users.json",
-			ocaPosts:               "../input/oca_get_posts.json",
-			ocaTermRelationships:   "../input/oca_term_relationships-all.json",
-			ocaPostIdAndCategoryId: "../input/oca_post_id_to_category_id.json",
-			ocaCategorySlugAndId:   "../input/oca_terms-categories.json",
-			ocaAllTerms:            "../input/oca_terms-all.json",
+			ocaUsers:                 "../input/oca_users.json",
+			ocaPosts:                 "../input/oca_get_posts.json",
+			ocaTermRelationships:     "../input/oca_term_relationships-all.json",
+			ocaPostIdAndCategoryId:   "../input/oca_post_id_to_category_id.json",
+			ocaCategorySlugAndId:     "../input/oca_terms-categories.json",
+			ocaAllTerms:              "../input/oca_terms-all.json",
+			ocaPostIdAndTagSlug:      "../input/oca_post_id_and_tag_slug.json",
+			sanityTagSlugAndRef:      "../input/sanity_tag_slug_and_ref.json",
+			sanityMediaNameAndRefs:   "../input/sanity_media_name_and_refs.json",
+			sanityCategorySlugsAndId: "../input/sanity_category_slugs_and_ids.json",
 		},
 		outputs: outputs{
 			transformedOcaUsers: "../output/transformed_oca_users.json",
@@ -43,16 +46,14 @@ func main() {
 		},
 	}
 
-	fmt.Println(config)
+	mappings, err := newMappings(config)
+	if err != nil {
+		panic(err)
+	}
 
 	// Phase 1: get Authors, Tags, and Categories.
 	{
 		byteValue, err := getByteValue(config.inputs.ocaUsers)
-		if err != nil {
-			panic(err)
-		}
-
-		userMap, err := makeUserMap(byteValue)
 		if err != nil {
 			panic(err)
 		}
@@ -74,7 +75,7 @@ func main() {
 			panic(err)
 		}
 
-		exportString, err = transformTags(byteValue, userMap)
+		exportString, err = transformTags(byteValue, mappings.authorMap)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -85,30 +86,18 @@ func main() {
 		}
 	}
 
-	// Phase 2: from the new data, assemble articles to upload.
+	// Phase 2: Upload The Authors and Tags to Sanity, along with media like
+	// images. This should be done before Phase 3 begins. This phase is semi-
+	// automatic and is not executed by this program.
+
+	// Phase 3: from the new data, assemble articles to upload.
 	{
 
 	}
 
 }
 
-func makeUserMap(byteValue []byte) (map[string]bool, error) {
-	var authors []ocaAuthor
-	userMap := make(map[string]bool)
-
-	err := json.Unmarshal(byteValue, &authors)
-	if err != nil {
-		return nil, err
-	}
-
-	for i := 0; i < len(authors); i++ {
-		userMap[authors[i].UserLogin] = true
-	}
-
-	return userMap, nil
-}
-
-// transformUsers transforms a data in a  `json` file into the schema of a new
+// transformUsers transforms data in a `json` file into the schema of a new
 // JSON file that can be converted into an `ndjson` file using the `jq` CLI
 // tool.
 func transformUsers(byteValue []byte) (string, error) {
@@ -203,23 +192,101 @@ type config struct {
 }
 
 type inputs struct {
-	// Path of post_id to category_id JSON file.
-	ocaCategories string
-	ocaPosts      string
+	// ocaPosts is a path to a JSON file containing multiple attributes related
+	// to all written text published posts, and not drafts.
+	//
+	// SQL Query:
+	//
+	// SELECT *
+	// FROM wp_x7zvdw3xj9_posts
+	// WHERE post_parent = 0 AND post_type = 'post' AND post_status = 'publish'
+	// ORDER BY post_date;
+	ocaPosts string
 
-	// Path of previous OCA members.
+	// ocaUsers is a path to a JSON file containing multiple attributes related
+	// to previous user data.
+	//
+	// SQL Query:
+	//
+	// SELECT t.* FROM db.wp_x7zvdw3xj9_users t;
 	ocaUsers string
 
 	ocaTermRelationships   string
 	ocaPostIdAndCategoryId string
-	ocaCategorySlugAndId   string
-	ocaAllTerms            string
+
+	// ocaCategorySlugAndId is a path to a JSON file containing attributes
+	// related to the several main categories from the Wordpress database.
+	//
+	// SQL Query:
+	//
+	// SELECT *
+	// FROM db.wp_x7zvdw3xj9_terms
+	// WHERE term_id IN (1,17,84,85,86,91,92,93,94,95,122,130,525,570,716,939);
+	ocaCategorySlugAndId string
+
+	ocaAllTerms string
+
+	// ocaPostIdAndTagSlug is a path to a JSON file containing an attribute
+	// "post_id" and an attribute  "tag_slug". The post IDs are IDs of posts
+	// that have a certain tag. This file also excludes the initial categories,
+	// only including the terms that aren't categories.
+	//
+	// SQL Query:
+	//
+	// SELECT
+	//     p.ID AS post_id,
+	//     tr.term_taxonomy_id AS category_id,
+	//     tt.term_id AS term_id,
+	//     t.slug as tag_slug
+	// FROM
+	//     db.wp_x7zvdw3xj9_posts p
+	// JOIN
+	//     db.wp_x7zvdw3xj9_term_relationships tr ON p.ID = tr.object_id
+	// JOIN
+	//     db.wp_x7zvdw3xj9_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
+	// JOIN
+	//     db.wp_x7zvdw3xj9_terms t ON tt.term_id = t.term_id
+	// WHERE
+	//     p.post_type = 'post'
+	//     AND p.post_status = 'publish'
+	//     AND tr.term_taxonomy_id NOT IN (1, 17, 84, 85, 86, 91, 92, 93, 94, 95, 122, 130, 525, 570, 716, 939);
+	ocaPostIdAndTagSlug string
 
 	// Path of Sanity ID JSON files.
 
-	sanityCategoryRefIds string
-	sanityTagRefIds      string
+	// A JSON file of the categories on Sanity and their corresponding IDs.
+	//
+	// Sanity Query:
+	//
+	// *[_type == "category"]{
+	// 		"refId": _id,
+	//  	"slug": slug.current
+	// }
+	sanityCategorySlugsAndId string
+
+	// A JSON file of every Sanity tag with attributes for their slug and
+	// their ID.
+	//
+	// Sanity Query:
+	//
+	// *[_type == "tag"]{
+	// 		"refId": _id,
+	// 		"slug": slug.current
+	// }
+	sanityTagSlugAndRef string
+
+	// A JSON file containing all Sanity media's file names and IDs.
+	//
+	// Sanity Query:
+	//
+	// *[_type == "sanity.imageAsset" && originalFilename == "oca-2014-02-IMG_0594.png"]{
+	// 		"file": originalFilename,
+	// 		assetId,
+	// 		"refId": _id
+	// }
+	sanityMediaNameAndRefs string
 }
+
 type outputs struct {
 	// Path of the tags in Sanity JSON format.
 	transformedOcaTags string
@@ -228,9 +295,10 @@ type outputs struct {
 	transformedOcaUsers string
 }
 
-// js represents paths of JS files and I/O. The value of these fields
-// should mirror those of the same name in the index.js script; however,
-// just with a different directory path.
+// js represents paths of JS files and I/O. The file in of these fields
+// should mirror those of the same name in the index.js script. That path to the
+// files though, are just a different directory path, relative to where this
+// program is run.
 //
 // As an aside, these can be turned into environment variables.
 type js struct {
@@ -250,6 +318,14 @@ type js struct {
 // mappings are mappings between Wordpress and Sanity data. They are then used
 // to construct a Sanity article document from a Wordpress post.
 type mappings struct {
+	// Map of all authors. This field is used to check whether an author
+	// exists in the database.
+	authorMap map[string]bool
+
+	// Map of all current Sanity categories. This field is used to check
+	// whether a particular category exists in Sanity.
+	sanityCategories map[string]bool
+
 	// Wordpress ID and Author Name.
 	Id2Author map[int]string
 	Author2Id map[string]int
@@ -264,8 +340,15 @@ type mappings struct {
 	SanityImageId2WordpressPath map[string]string
 	WordpressPath2SanityImageId map[string]string
 
+	// One-to-one relationship between an image name on Sanity and its ID.
+	// The image name should be of the form YYYY-MM-{name}.webp. This mapping
+	// is used when linking a Sanity reference ID to a Wordpress image.
+	SanityImageFilename2SanityImageId map[string]string
+	SanityImageId2SanityImageFilename map[string]string
+
 	// Tag slug and the corresponding Tag's Sanity document ID. This is used to
-	// populate the tag reference fields of the article struct.
+	// populate the tag reference fields of the article struct. This data is
+	// retrieved from a Sanity query.
 	TagSlug2SanityTagId map[string]string
 	SanityTagId2TagSlug map[string]string
 
@@ -283,15 +366,32 @@ type mappings struct {
 	SanityCategorySlug2WordpressCategorySlug map[string][]string
 	WordpressCategorySlug2SanityCategorySlug map[string]string
 
-	WordpressId2WordpressCategory map[int]int
-	WordpressCategory2WordpressId map[int][]int
+	// ID of the Wordpress post to the ID of its category.
+	WordpressId2WordpressCategoryId map[int]int
+	WordpressCategoryId2WordpressId map[int][]int
 
 	CategoryId2CategorySlug map[int]string
 	CategorySlug2CategoryId map[string]int
+
+	WordpressPostId2TagSlug map[string]string
+	TagSlug2WordpressPostId map[string]string
+
+	// Wordpress posts and their tags.
+	WordpressPostId2TagSlugs map[int][]string
+	TagSlugs2WordpressPostId map[string][]int
 }
 
-func newMappings(c config) (*mappings, error) {
+func newMappings(config config) (*mappings, error) {
 	mappings := &mappings{
+		authorMap: make(map[string]bool),
+
+		sanityCategories: map[string]bool{
+			"news":    true,
+			"opinion": true,
+			"people":  true,
+			"culture": true,
+		},
+
 		Id2Author: make(map[int]string),
 		Author2Id: make(map[string]int),
 
@@ -300,6 +400,9 @@ func newMappings(c config) (*mappings, error) {
 
 		SanityImageId2WordpressPath: make(map[string]string),
 		WordpressPath2SanityImageId: make(map[string]string),
+
+		SanityImageFilename2SanityImageId: make(map[string]string),
+		SanityImageId2SanityImageFilename: make(map[string]string),
 
 		TagSlug2SanityTagId: map[string]string{
 			// The values here are populated by importing JSON data.
@@ -375,16 +478,40 @@ func newMappings(c config) (*mappings, error) {
 			"fashion":            "culture",
 		},
 
-		WordpressId2WordpressCategory: make(map[int]int),
-		WordpressCategory2WordpressId: make(map[int][]int),
+		WordpressId2WordpressCategoryId: make(map[int]int),
+		WordpressCategoryId2WordpressId: make(map[int][]int),
 
 		CategoryId2CategorySlug: make(map[int]string),
 		CategorySlug2CategoryId: make(map[string]int),
+
+		WordpressPostId2TagSlug: make(map[string]string),
+		TagSlug2WordpressPostId: make(map[string]string),
+
+		WordpressPostId2TagSlugs: make(map[int][]string),
+		TagSlugs2WordpressPostId: make(map[string][]int),
+	}
+
+	// Populate the authorMap
+
+	byteValue, err := getByteValue(config.inputs.ocaUsers)
+	if err != nil {
+		return nil, err
+	}
+
+	var authors []ocaAuthor
+
+	err = json.Unmarshal(byteValue, &authors)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := 0; i < len(authors); i++ {
+		mappings.authorMap[authors[i].UserLogin] = true
 	}
 
 	// Populate the Wordpress ID to Wordpress Category maps.
 
-	byteValue, err := getByteValue(c.inputs.ocaPostIdAndCategoryId)
+	byteValue, err = getByteValue(config.inputs.ocaPostIdAndCategoryId)
 	if err != nil {
 		return nil, err
 	}
@@ -400,20 +527,20 @@ func newMappings(c config) (*mappings, error) {
 	}
 
 	for _, v := range d {
-		mappings.WordpressId2WordpressCategory[v.PostId] = v.CategoryId
+		mappings.WordpressId2WordpressCategoryId[v.PostId] = v.CategoryId
 
-		_, ok := mappings.WordpressCategory2WordpressId[v.CategoryId]
+		_, ok := mappings.WordpressCategoryId2WordpressId[v.CategoryId]
 
 		if !ok {
-			mappings.WordpressCategory2WordpressId[v.CategoryId] = []int{v.PostId}
+			mappings.WordpressCategoryId2WordpressId[v.CategoryId] = []int{v.PostId}
 		} else {
-			mappings.WordpressCategory2WordpressId[v.CategoryId] = append(mappings.WordpressCategory2WordpressId[v.CategoryId], v.PostId)
+			mappings.WordpressCategoryId2WordpressId[v.CategoryId] = append(mappings.WordpressCategoryId2WordpressId[v.CategoryId], v.PostId)
 		}
 	}
 
 	// Populate the Category ID to Category Slug maps.
 
-	byteValue, err = getByteValue(c.inputs.ocaPostIdAndCategoryId)
+	byteValue, err = getByteValue(config.inputs.ocaPostIdAndCategoryId)
 	if err != nil {
 		return nil, err
 	}
@@ -433,6 +560,76 @@ func newMappings(c config) (*mappings, error) {
 		mappings.CategorySlug2CategoryId[v.Slug] = v.TermId
 	}
 
+	// Add Tags to Wordpress Post IDs.
+
+	byteValue, err = getByteValue(config.inputs.ocaPostIdAndTagSlug)
+	if err != nil {
+		return nil, err
+	}
+
+	t := []struct {
+		PostId  int    `json:"post_id"`
+		TagSlug string `json:"tag_slug"`
+	}{}
+
+	err = json.Unmarshal(byteValue, &t)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, v := range t {
+		// If the entry doesn't exist, make a new array.
+		if _, ok := mappings.WordpressPostId2TagSlugs[v.PostId]; !ok {
+			mappings.WordpressPostId2TagSlugs[v.PostId] = make([]string, 0)
+		}
+
+		// Add the entry to the map.
+		mappings.WordpressPostId2TagSlugs[v.PostId] = append(mappings.WordpressPostId2TagSlugs[v.PostId], v.TagSlug)
+	}
+
+	byteValue, err = getByteValue(config.inputs.sanityMediaNameAndRefs)
+	if err != nil {
+		return nil, err
+	}
+
+	p := []struct {
+		File    string `json:"file"`
+		AssetId string `json:"assetId"`
+		RefId   string `json:"refId"`
+	}{}
+
+	err = json.Unmarshal(byteValue, &p)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, v := range p {
+		mappings.SanityImageFilename2SanityImageId[v.File] = v.RefId
+		mappings.SanityImageId2SanityImageFilename[v.RefId] = v.File
+	}
+
+	// Populate Sanity Tag Slugs and Refs
+
+	byteValue, err = getByteValue(config.inputs.sanityTagSlugAndRef)
+	if err != nil {
+		return nil, err
+	}
+
+	n := []struct {
+		RefId string `json:"refId"`
+		Slug  string `json:"slug"`
+	}{}
+
+	err = json.Unmarshal(byteValue, &n)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, v := range n {
+		mappings.TagSlug2SanityTagId[v.Slug] = v.RefId
+		mappings.SanityTagId2TagSlug[v.RefId] = v.Slug
+	}
+
 	return mappings, nil
 }
 
@@ -443,6 +640,7 @@ type document struct {
 	Type string `json:"_type"`
 	Id   string `json:"_id,omitempty"`
 	Key  string `json:"_key,omitempty"`
+	Ref  string `json:"_ref,omitempty"`
 }
 
 type slug struct {
@@ -499,48 +697,6 @@ type tag struct {
 	Slug        slug   `json:"slug"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-}
-
-type refAuthor struct {
-	document
-
-	// Ref is the `_id` of the Member document.
-	// See: https://www.sanity.io/docs/reference-type#e97572ca6050
-	Ref string `json:"_ref"`
-}
-
-type refCategory struct {
-	document
-
-	// Ref is the `_id` of the Category document.
-	// See: https://www.sanity.io/docs/reference-type#e97572ca6050
-	Ref string `json:"_ref"`
-}
-
-func newRefCategory(ref string) refCategory {
-	return refCategory{
-		document: document{
-			Type: "reference",
-		},
-		Ref: ref,
-	}
-}
-
-type refTag struct {
-	document
-
-	// Ref is the `_id` of the Tag document.
-	// See: https://www.sanity.io/docs/reference-type#e97572ca6050
-	Ref string `json:"_ref"`
-}
-
-func newRefTag(ref string) refTag {
-	return refTag{
-		document: document{
-			Type: "tag",
-		},
-		Ref: ref,
-	}
 }
 
 // ocaAuthor mirrors the Wordpress data of an author.
