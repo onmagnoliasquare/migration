@@ -102,7 +102,6 @@ const defaultSchema = Schema.compile({
           name: "title",
           title: "Title",
           type: "string",
-          description: "Optional title of the image, displayed in larger text.",
         },
         {
           name: "alt",
@@ -126,46 +125,31 @@ const blockContentType = defaultSchema
 // Then replace all \" with "
 // Replace \r\n with <br> and \" with "
 // Only allow 1 <br> between elements. This removes extra <br>'s.
-let brCount = 0;
 const blocks = htmlToBlocks(htmlContent, blockContentType, {
   parseHtml: (html) => new JSDOM(html).window.document,
   rules: [
-    {
-      // Makes <br> turn into ""
-      deserialize(el, next, block) {
-        if (el.nodeName.toLowerCase() === "br") {
-          return undefined;
-        }
-        //   console.log(brCount);
-        //   if (el.nodeName.toLowerCase() == "br" && brCount > 1) {
-        //     console.log(brCount);
-        //     return undefined;
-        //   } else if (el.nodeName.toLowerCase() != "br") {
-        //     brCount = 0;
-        //     console.log(brCount);
-        //     console.log(el.nodeName);
-        //     return undefined;
-        //   }
-        //   console.log(el.nodeName);
-        //   brCount++;
-        //   if (brCount <= 1) {
-        //     return normalizeBlock(
-        //       block({
-        //         style: "normal",
-        //         markDefs: [],
-        //         children: [
-        //           {
-        //             _type: "span",
-        //             marks: [],
-        //             text: "",
-        //           },
-        //         ],
-        //         _type: "block",
-        //       })
-        //     );
-        //   }
-      },
-    },
+    // {
+    //   // Makes <br> turn into ""
+    //   deserialize(el, next, block) {
+    //     if (el.nodeName.toLowerCase() !== "br") {
+    //       return undefined;
+    //     }
+    //     return normalizeBlock(
+    //       block({
+    //         style: "normal",
+    //         markDefs: [],
+    //         children: [
+    //           {
+    //             _type: "span",
+    //             marks: [],
+    //             text: "",
+    //           },
+    //         ],
+    //         _type: "block",
+    //       })
+    //     );
+    //   },
+    // },
     {
       // <img>
       deserialize(el, next, block) {
