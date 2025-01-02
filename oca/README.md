@@ -147,7 +147,21 @@ WHERE object_id = [post ID]
 
 `[post id]` is the `ID` of interest. The output should return none or many values in the `term_taxonomy_id` column. Repeat **Step 2** with the values returned in the query to find the names of the categories or tags.
 
-## aa
+## Media sanitization and upload
+
+The Wordpress media is sorted into directories by year, then month. A media file may have a path like:
+
+`2018/03/campus_map.jpg`
+
+Because media has to be uploaded first before posts, the filenames must be sanitized/reformatted into a more informative and workable naming scheme. This is the final filename format:
+
+`2018-03-campus_map.jpg`
+
+Quite simple, but the complications happen when trying to connect the Wordpress content's `<img>` `src` attributes to these files. A typical `src` value would be something like:
+
+`http://oncenturyavenue.org/wp-content/uploads/2018/02/media-20180214-3-1024x847.png`
+
+The only thing in common is the filepath, which is the year, then month. The filename is similar, however, the image's dimensions are infixed between the original name and the dot before the file extension.
 
 ## Useful Links
 
