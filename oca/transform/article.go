@@ -45,7 +45,7 @@ type article struct {
 // sanity-blocks parser written in TypeScript. - Neo
 func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 
-	fmt.Printf("Transforming article %d on %s\n", a.Id, a.PostDateGMT)
+	fmt.Printf("> %d on %s\n", a.Id, a.PostDateGMT)
 
 	// Write the post_content to an HTML file.
 	err := writeToFile(a.PostContent, config.js.inputHtmlPath)
