@@ -45,6 +45,8 @@ type article struct {
 // sanity-blocks parser written in TypeScript. - Neo
 func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 
+	fmt.Printf("Transforming article %d on %s\n", a.Id, a.PostDateGMT)
+
 	// Write the post_content to an HTML file.
 	err := writeToFile(a.PostContent, config.js.inputHtmlPath)
 	if err != nil {
@@ -95,7 +97,7 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 	}
 
 	tags := []reference{}
-	tags = append(tags, newRefTag(m.TagSlug2SanityTagId["on-century-avenue"]))
+	tags = append(tags, newRefTag(m.TagSlug2SanityTagId["oca"]))
 
 	// If a category no longer exists, add the corresponding existing tag to
 	// the new Sanity Article.
@@ -149,7 +151,7 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 	// fmt.Println(tagSlugs)
 	for _, v := range tagSlugs {
 		sanityTagId, ok := m.TagSlug2SanityTagId[v]
-		if !ok || sanityTagId == "" {
+		if !ok || sanityTagId == "" || v == "on-century-avenue" {
 			continue
 		}
 		tags = append(tags, newRefTag(sanityTagId))
@@ -263,6 +265,10 @@ func extractImageFileName(s string) (string, error) {
 
 	elms := strings.Split(u.Path, "/")
 
+	if len(elms) < 4 {
+		return "not-found", nil
+	}
+
 	// Get the last three elements of the array and join them with -. The last
 	// three elements are the file name and the date in YYYY-MM format.
 	_, err = sb.WriteString(strings.Join(elms[len(elms)-3:], "-"))
@@ -304,8 +310,11 @@ func retrieveImageRef(m mappings) func(s string) (string, error) {
 		// ID map. These IDs are from Sanity.
 		ref, ok := m.SanityImageFilename2SanityImageId[s]
 		if !ok {
-			return "", fmt.Errorf("image filename not in Sanity mapping: %v", s)
+			// In the case that the file doesn't exist, use a placeholder image.
+			ref = m.SanityImageFilename2SanityImageId["media_does_not_exist.png"]
 		}
+
+		fmt.Printf("...found media %s\n", s)
 
 		return ref, nil
 	}
