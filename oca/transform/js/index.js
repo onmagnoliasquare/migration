@@ -163,7 +163,13 @@ const blocks = htmlToBlocks(htmlContent, blockContentType, {
         // the links here are dead and must be changed manually. Turning it into
         // a text block makes it obvious which links must be converted.
 
-        if (el.getAttribute("src").includes("googleusercontent")) {
+        if (
+          // !el.getAttribute("src").includes("wordpress")
+          el.getAttribute("src").includes("googleusercontent") ||
+          el.getAttribute("src").includes("tumblr") ||
+          el.getAttribute("src").includes("imgur") ||
+          el.getAttribute("src").includes("riffsy")
+        ) {
           return normalizeBlock(
             block({
               style: "normal",
