@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -842,9 +843,14 @@ type slug struct {
 }
 
 func newSlug(s string) slug {
+	c, err := url.QueryUnescape(s)
+	if err != nil {
+		c = s
+	}
+
 	return slug{
 		Type:    "slug",
-		Current: s,
+		Current: c,
 	}
 }
 

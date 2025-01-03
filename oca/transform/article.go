@@ -151,7 +151,7 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 	// fmt.Println(tagSlugs)
 	for _, v := range tagSlugs {
 		sanityTagId, ok := m.TagSlug2SanityTagId[v]
-		if !ok || sanityTagId == "" || v == "on-century-avenue" {
+		if !ok || sanityTagId == "" || v == "on-century-avenue" || v == "%e4%b8%ad%e6%96%87" {
 			continue
 		}
 		tags = append(tags, newRefTag(sanityTagId))
@@ -166,13 +166,21 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 		Ref: categoryRef,
 	}
 
-	title := strings.ReplaceAll(a.PostTitle, `\`, ``)
+	title, err := url.QueryUnescape(a.PostTitle)
+	if err != nil {
+		title = a.PostTitle
+	}
+
+	title = strings.ReplaceAll(title, `\`, ``)
+	title = strings.TrimSpace(title)
 
 	// DateOnly format is YYYY-MM-DD.
 	date := publishDate.Format(time.DateOnly)
 	// date := publishDate.Format(time.RFC3339Nano)
 
 	slug := newSlug(a.PostName)
+
+	fmt.Printf("-- %s\n", slug.Current)
 
 	uid := uuid.New()
 
@@ -198,7 +206,7 @@ func newArticle(a ocaArticle, m mappings, config config) (*article, error) {
 	// Some posts have a populated "post_excerpt" field. If its not blank,
 	// use it as the subtitle.
 	if a.PostExcerpt != "" {
-		sanityArticle.Subtitle = a.PostExcerpt
+		sanityArticle.Subtitle = strings.TrimSpace(a.PostExcerpt)
 	}
 
 	return sanityArticle, nil
