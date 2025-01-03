@@ -13,6 +13,7 @@ import (
 )
 
 const NODE_PATH = "/opt/homebrew/bin/node"
+const JQ_PATH = "/opt/homebrew/bin/jq"
 
 func main() {
 
@@ -21,6 +22,12 @@ func main() {
 	_, err := cmd.Output()
 	if err != nil {
 		panic(fmt.Sprintf("Node not found on this system: %s", err))
+	}
+
+	cmd = exec.Command(JQ_PATH, "--version")
+	_, err = cmd.Output()
+	if err != nil {
+		panic(fmt.Sprintf("Jq not found on this system: %s", err))
 	}
 
 	config := config{
@@ -36,15 +43,17 @@ func main() {
 			ocaCategorySlugAndId:     "../input/oca_terms-categories.json",
 			ocaAllTerms:              "../input/oca_terms-all.json",
 			ocaPostIdAndTagSlug:      "../input/oca_post_id_and_tag_slug.json",
-			sanityTagSlugAndRef:      "../input/sanity_tag_slug_and_ref.json",
 			sanityMediaNameAndRefs:   "../input/sanity_media_name_and_refs.json",
 			sanityCategorySlugsAndId: "../input/sanity_category_slugs_and_ids.json",
 			sanityAuthorIds:          "../input/sanity_author_ids.json",
 		},
 		outputs: outputs{
-			transformedOcaUsers:    "../output/transformed_oca_users.json",
-			transformedOcaTags:     "../output/transformed_oca_tags.json",
-			transformedOcaArticles: "../output/transformed_oca_articles.json",
+			transformedOcaUsers:          "../output/transformed_oca_users.json",
+			transformedOcaTags:           "../output/transformed_oca_tags.json",
+			transformedOcaArticles:       "../output/transformed_oca_articles.json",
+			transformedOcaUsersNdjson:    "../output/transformed_oca_users.ndjson",
+			transformedOcaTagsNdjson:     "../output/transformed_oca_tags.ndjson",
+			transformedOcaArticlesNdjson: "../output/transformed_oca_articles.ndjson",
 		},
 		js: js{
 			indexJsPath:            "./js/index.js",
@@ -85,7 +94,7 @@ func main() {
 
 		fmt.Println("Attempting to transform users...")
 
-		exportString, err := transformUsers(byteValue)
+		exportString, err := transformUsers(byteValue, *mappings)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -112,7 +121,7 @@ func main() {
 
 		fmt.Println("Attempting to transform tags...")
 
-		exportString, err = transformTags(byteValue, mappings.authorMap)
+		exportString, err = transformTags(byteValue, *mappings)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -127,6 +136,7 @@ func main() {
 		}
 
 		fmt.Printf("  - Tag transforms written to: %s\n", transformedTagsPath)
+
 	}
 
 	// Phase 1.5: Upload The Authors and Tags to Sanity, along with media like
@@ -175,7 +185,7 @@ func main() {
 // transformUsers transforms data in a `json` file into the schema of a new
 // JSON file that can be converted into an `ndjson` file using the `jq` CLI
 // tool.
-func transformUsers(byteValue []byte) (string, error) {
+func transformUsers(byteValue []byte, m mappings) (string, error) {
 	var authors []ocaAuthor
 	var exportString string
 	var newAuthors []string
@@ -187,10 +197,20 @@ func transformUsers(byteValue []byte) (string, error) {
 
 	// Transform author data into new OMS sanity data fields
 	for i := 0; i < len(authors); i++ {
+
+		// If an author already exists with the same name in the dataset, don't
+		// create a new one.
+		if _, ok := m.AuthorName2SanityAuthorRef[authors[i].Name]; ok {
+			continue
+		}
+
 		a, err := newAuthor(authors[i])
 		if err != nil {
 			return "", err
 		}
+
+		m.SanityAuthorRef2AuthorName[a.Id] = a.Name
+		m.AuthorName2SanityAuthorRef[a.Name] = a.Id
 
 		newAuthor, err := json.MarshalIndent(a, " ", "  ")
 		if err != nil {
@@ -206,7 +226,7 @@ func transformUsers(byteValue []byte) (string, error) {
 	return exportString, nil
 }
 
-func transformTags(byteValue []byte, um map[string]bool) (string, error) {
+func transformTags(byteValue []byte, m mappings) (string, error) {
 	var oldTags []ocaTag
 	var exportString string
 	var newTags []string
@@ -215,7 +235,7 @@ func transformTags(byteValue []byte, um map[string]bool) (string, error) {
 
 	for i := 0; i < len(oldTags); i++ {
 		// First check if this tag is a NetID. If so, skip it.
-		if um[oldTags[i].Name] {
+		if m.authorMap[oldTags[i].Name] {
 			// fmt.Printf("%s is a Net ID, skipping...\n", oldTags[i].Name)
 			continue
 		}
@@ -223,13 +243,15 @@ func transformTags(byteValue []byte, um map[string]bool) (string, error) {
 		// Business as usual...
 
 		uid := uuid.New()
+
+		// Add OCA prefix for easy data deletion. These can be removed when
+		// all the data has been imported successfully.
+		id := fmt.Sprintf("oca-%s", uid.String())
 		document := document{
 			Type: "tag",
-
-			// No need OCA ID mark. These are just tags, and do not need
-			// to equate to a point in time.
-			Id: uid.String(),
+			Id:   id,
 		}
+
 		slug := newSlug(oldTags[i].Slug)
 
 		t := &tag{
@@ -238,6 +260,10 @@ func transformTags(byteValue []byte, um map[string]bool) (string, error) {
 			Name:        strings.ToLower(oldTags[i].Name),
 			Description: "A tag from OCA.",
 		}
+
+		// Add the new tags to mappings.
+		m.TagSlug2SanityTagId[t.Slug.Current] = t.document.Id
+		m.SanityTagId2TagSlug[t.document.Id] = t.Slug.Current
 
 		newTag, err := json.MarshalIndent(t, " ", "  ")
 		if err != nil {
@@ -369,7 +395,7 @@ type inputs struct {
 	// 		"refId": _id,
 	// 		"slug": slug.current
 	// }
-	sanityTagSlugAndRef string
+	// sanityTagSlugAndRef string
 
 	// A JSON file containing all Sanity media's file names and IDs.
 	//
@@ -402,6 +428,10 @@ type outputs struct {
 
 	// Path of articles in Sanity JSON format.
 	transformedOcaArticles string
+
+	transformedOcaTagsNdjson     string
+	transformedOcaUsersNdjson    string
+	transformedOcaArticlesNdjson string
 }
 
 // js represents paths of JS files and I/O. The file in of these fields
@@ -464,10 +494,6 @@ type mappings struct {
 	// Slug of the Wordpress category to the Sanity category ID.
 	CategorySlug2SanityCategoryId map[string]string
 	SanityCategoryId2CategorySlug map[string]string
-
-	// Wordpress
-	WordpressPostId2CategorySlug map[int]string
-	CategorySlug2WordpressPostId map[string][]int
 
 	// Sanity Category that maps to a Wordpress Category. Because some
 	// categories on Wordpress do not exist on Sanity, an array of strings
@@ -625,7 +651,8 @@ func newMappings(config config) (*mappings, error) {
 
 	}
 
-	// Populate the Author Name to Sanity Ref Map.
+	// Populate the Author Name to Sanity Ref Map. These are the authors that
+	// were already on the Sanity database.
 
 	byteValue, err = getByteValue(config.inputs.sanityAuthorIds)
 	if err != nil {
@@ -643,9 +670,6 @@ func newMappings(config config) (*mappings, error) {
 	}
 
 	for i, v := range r {
-		// If a name already exists in the dataset for OCA in our current
-		// database, skip the mapping.
-
 		mappings.SanityAuthorRef2AuthorName[v.Id] = v.AuthorName
 		// fmt.Printf("Mapped %s to %s\n", v.Id, v.AuthorName)
 		mappings.AuthorName2SanityAuthorRef[v.AuthorName] = v.Id
@@ -775,28 +799,28 @@ func newMappings(config config) (*mappings, error) {
 
 	// Populate Sanity Tag Slugs and Refs.
 
-	byteValue, err = getByteValue(config.inputs.sanityTagSlugAndRef)
-	if err != nil {
-		return nil, err
-	}
+	// byteValue, err = getByteValue(config.inputs.sanityTagSlugAndRef)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	n := []struct {
-		RefId string `json:"refId"`
-		Slug  string `json:"slug"`
-	}{}
+	// n := []struct {
+	// 	RefId string `json:"refId"`
+	// 	Slug  string `json:"slug"`
+	// }{}
 
-	err = json.Unmarshal(byteValue, &n)
-	if err != nil {
-		return nil, err
-	}
+	// err = json.Unmarshal(byteValue, &n)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	for i, v := range n {
-		mappings.TagSlug2SanityTagId[v.Slug] = v.RefId
-		mappings.SanityTagId2TagSlug[v.RefId] = v.Slug
-		count = i
-	}
+	// for i, v := range n {
+	// 	mappings.TagSlug2SanityTagId[v.Slug] = v.RefId
+	// 	mappings.SanityTagId2TagSlug[v.RefId] = v.Slug
+	// 	count = i
+	// }
 
-	fmt.Printf("Mapped %d unique tags to Sanity IDs\n", count)
+	// fmt.Printf("Mapped %d unique tags to Sanity IDs\n", count)
 
 	count = 0
 
