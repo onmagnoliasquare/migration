@@ -25,8 +25,11 @@ func main() {
 	config := config{
 		inputs: inputs{
 			ocaUsers: "../input/oca_users.json",
-			// ocaPosts:                 "../input/oca_get_posts.json",
-			ocaPosts:                 "../input/oca_article_test_1.json",
+			// ocaPosts: "../input/oca_get_posts.json",
+			ocaPosts: "../input/oca_get_posts_2014_2022.json",
+			// ocaPosts: "../input/oca_get_posts_2021_2022.json",
+			// ocaPosts:                 "../input/oca_article_test_3.json",
+
 			ocaTermRelationships:     "../input/oca_term_relationships-all.json",
 			ocaPostIdAndCategoryId:   "../input/oca_post_id_to_category_id.json",
 			ocaCategorySlugAndId:     "../input/oca_terms-categories.json",
@@ -84,6 +87,7 @@ func main() {
 		exportString, err := transformUsers(byteValue)
 		if err != nil {
 			fmt.Println(err)
+			return
 		}
 
 		transformedOcaUsersPath := config.outputs.transformedOcaUsers
@@ -91,6 +95,7 @@ func main() {
 		err = os.WriteFile(transformedOcaUsersPath, []byte(exportString), 0644)
 		if err != nil {
 			fmt.Println(err)
+			return
 		}
 
 		fmt.Printf("  - User transforms written to: %s\n", transformedOcaUsersPath)
@@ -109,6 +114,7 @@ func main() {
 		exportString, err = transformTags(byteValue, mappings.authorMap)
 		if err != nil {
 			fmt.Println(err)
+			return
 		}
 
 		transformedTagsPath := config.outputs.transformedOcaTags
@@ -116,6 +122,7 @@ func main() {
 		err = os.WriteFile(transformedTagsPath, []byte(exportString), 0644)
 		if err != nil {
 			fmt.Println(err)
+			return
 		}
 
 		fmt.Printf("  - Tag transforms written to: %s\n", transformedTagsPath)
@@ -146,6 +153,7 @@ func main() {
 		exportString, err := transformArticles(byteValue, *mappings, config)
 		if err != nil {
 			fmt.Println(err)
+			return
 		}
 
 		fmt.Println("Articles transformed successfully.")
@@ -155,6 +163,7 @@ func main() {
 		err = os.WriteFile(articleOutputPath, []byte(exportString), 0644)
 		if err != nil {
 			fmt.Println(err)
+			return
 		}
 
 		fmt.Printf("  - Article transforms written to: %s\n", articleOutputPath)
@@ -669,8 +678,8 @@ func newMappings(config config) (*mappings, error) {
 		mappings.CategorySlug2CategoryId[v.Slug] = v.TermId
 	}
 
-	PrintJSON(mappings.CategorySlug2CategoryId)
-	PrintJSON(mappings.CategoryId2CategorySlug)
+	// PrintJSON(mappings.CategorySlug2CategoryId)
+	// PrintJSON(mappings.CategoryId2CategorySlug)
 
 	// Populate the Wordpress ID to Wordpress Category maps.
 
