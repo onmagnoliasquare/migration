@@ -26,6 +26,7 @@ Tools and software used to accomplish this migration:
 - **DataGrip** for easy access to browsing SQL data.
 - **Go** for the main transformation program.
 - **Node** for running JavaScript files.
+- **Transnomino** for batch renaming of files
 
 ### Disambiguation
 
