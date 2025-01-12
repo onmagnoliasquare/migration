@@ -164,6 +164,18 @@ Quite simple, but the complications happen when trying to connect the Wordpress 
 
 The only thing in common is the filepath, which is the year, then month. The filename is similar, however, the image's dimensions are infixed between the original name and the dot before the file extension.
 
+## Sanity upload commands
+
+```bash
+yarn sanity dataset import oca.ndjson [dataset]
+```
+
+## Troubleshooting
+
+### `drafts.(id)`
+
+Make sure that when importing a Sanity dataset, **there are no draft ids**.
+
 ## Useful Links
 
 ### Wordpress

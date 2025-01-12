@@ -33,12 +33,9 @@ func main() {
 	config := config{
 		inputs: inputs{
 			ocaUsers: "../input/oca_users.json",
-			// ocaPosts: "../input/oca_get_posts.json",
-			ocaPosts: "../input/oca_get_posts_2014_2022.json",
-			// ocaPosts: "../input/oca_get_posts_2021_2022.json",
-			// ocaPosts:                 "../input/oca_article_test_3.json",
 
-			ocaTermRelationships:     "../input/oca_term_relationships-all.json",
+			// Contains the posts that don't mess up the transform program.
+			ocaPosts:                 "../input/oca_get_posts_2014_2022.json",
 			ocaPostIdAndCategoryId:   "../input/oca_post_id_to_category_id.json",
 			ocaCategorySlugAndId:     "../input/oca_terms-categories.json",
 			ocaAllTerms:              "../input/oca_terms-all.json",
@@ -48,12 +45,9 @@ func main() {
 			sanityAuthorIds:          "../input/sanity_author_ids.json",
 		},
 		outputs: outputs{
-			transformedOcaUsers:          "../output/transformed_oca_users.json",
-			transformedOcaTags:           "../output/transformed_oca_tags.json",
-			transformedOcaArticles:       "../output/transformed_oca_articles.json",
-			transformedOcaUsersNdjson:    "../output/transformed_oca_users.ndjson",
-			transformedOcaTagsNdjson:     "../output/transformed_oca_tags.ndjson",
-			transformedOcaArticlesNdjson: "../output/transformed_oca_articles.ndjson",
+			transformedOcaUsers:    "../output/transformed_oca_users.json",
+			transformedOcaTags:     "../output/transformed_oca_tags.json",
+			transformedOcaArticles: "../output/transformed_oca_articles.json",
 		},
 		js: js{
 			indexJsPath:            "./js/index.js",
@@ -333,7 +327,6 @@ type inputs struct {
 	// SELECT t.* FROM db.wp_x7zvdw3xj9_users t;
 	ocaUsers string
 
-	ocaTermRelationships   string
 	ocaPostIdAndCategoryId string
 
 	// ocaCategorySlugAndId is a path to a JSON file containing attributes
@@ -401,7 +394,7 @@ type inputs struct {
 	//
 	// Sanity Query:
 	//
-	// *[_type == "sanity.imageAsset" && originalFilename == "oca-2014-02-IMG_0594.png"]{
+	// *[_type == "sanity.imageAsset"]{
 	// 		"file": originalFilename,
 	// 		assetId,
 	// 		"refId": _id
@@ -428,10 +421,6 @@ type outputs struct {
 
 	// Path of articles in Sanity JSON format.
 	transformedOcaArticles string
-
-	transformedOcaTagsNdjson     string
-	transformedOcaUsersNdjson    string
-	transformedOcaArticlesNdjson string
 }
 
 // js represents paths of JS files and I/O. The file in of these fields
